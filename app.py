@@ -219,5 +219,12 @@ def test_message():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    return response
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 
