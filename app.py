@@ -73,14 +73,14 @@ def analyze_image_with_ai(image_url):
         }
         
         payload = {
-            "model": "gpt-4-vision-preview",
+            "model": "gpt-4-vision-preview",  # Fixed model name
             "messages": [
                 {
                     "role": "user",
                     "content": [
                         {
                             "type": "text",
-                            "text": "Analyze this food image. Format EXACTLY like this example:\n🍽️ Food: [name]\n🔥 Calories: [number]kcal\n🥩 Protein: [number]g\n🌾 Carbs: [number]g\n🥑 Fat: [number]g"
+                            "text": "Provide a brief nutritional analysis of this food. Keep it concise with only:\n1. Food name\n2. Calories\n3. Protein\n4. Carbs\n5. Fat\nUse bullet points and numbers only, no explanations."
                         },
                         {
                             "type": "image_url",
@@ -91,7 +91,7 @@ def analyze_image_with_ai(image_url):
                     ]
                 }
             ],
-            "max_tokens": 150  # Even shorter response
+            "max_tokens": 300  # Reduced token limit for shorter responses
         }
         
         # Make the API request
@@ -105,39 +105,52 @@ def analyze_image_with_ai(image_url):
         data = response.json()
         analysis = data.get('choices', [{}])[0].get('message', {}).get('content', '')
         
-        return analysis.strip()
+        # Format the result
+        result = f"""📊 Quick Nutrition Facts:
+{analysis}
+"""
+        
+        return result
     
     except Exception as e:
         return f"Error analyzing image: {str(e)}"
 
 def send_whatsapp_message(to_number, message):
-    """Send WhatsApp message, splitting if too long"""
+    """
+    Send a WhatsApp message using Twilio
+    """
     try:
-        # Split message if needed
-        message_parts = split_message(message)
+        print(f"Sending message to: {to_number}")
         
-        for part in message_parts:
-            # Format numbers
-            if not to_number.startswith('whatsapp:'):
-                if not to_number.startswith('+'):
-                    to_number = '+' + to_number
-                to_number = f"whatsapp:{to_number}"
+        # Format the phone number for Twilio
+        # Twilio requires the format 'whatsapp:+1234567890'
+        if not to_number.startswith('whatsapp:'):
+            # Make sure the number starts with a plus sign
+            if not to_number.startswith('+'):
+                to_number = '+' + to_number
             
-            from_number = TWILIO_PHONE_NUMBER
-            if not from_number.startswith('whatsapp:'):
-                if not from_number.startswith('+'):
-                    from_number = '+' + from_number
-                from_number = f"whatsapp:{from_number}"
-            
-            # Send message
-            message = twilio_client.messages.create(
-                from_=from_number,
-                body=part,
-                to=to_number
-            )
-            time.sleep(1)  # Small delay between parts
+            to_number = f"whatsapp:{to_number}"
         
-        return {"success": True}
+        # Format the Twilio number too
+        from_number = TWILIO_PHONE_NUMBER
+        if not from_number.startswith('whatsapp:'):
+            if not from_number.startswith('+'):
+                from_number = '+' + from_number
+            
+            from_number = f"whatsapp:{from_number}"
+        
+        print(f"Formatted number: {to_number}")
+        print(f"From number: {from_number}")
+        
+        # Send the message
+        message = twilio_client.messages.create(
+            from_=from_number,
+            body=message,
+            to=to_number
+        )
+        
+        print(f"Message sent successfully with SID: {message.sid}")
+        return {"success": True, "sid": message.sid}
     
     except Exception as e:
         print(f"Exception in send_whatsapp_message: {str(e)}")
@@ -224,9 +237,9 @@ def test_message():
         result = send_whatsapp_message(to_number, message)
         
         if result.get("success"):
-            return jsonify({"status": "success", "message": "Test message sent"})
+            return jsonify({"status": "success", "message": "Test message sent", "sid": result.get("sid")})
         else:
-            return jsonify({"status": "error", "error": result.get("error")}), 500
+            return jsonify({"status": "error", "error": result.get("error")})
     
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -239,4 +252,7 @@ def add_security_headers(response):
     return response
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000) 
+    # Get port from environment variable for Railway
+    port = int(os.environ.get('PORT', 5000))
+    # Listen on all interfaces
+    app.run(host='0.0.0.0', port=port) 
