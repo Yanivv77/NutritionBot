@@ -30,6 +30,26 @@ YOUR_PHONE_NUMBER = os.environ.get('YOUR_PHONE_NUMBER')
 # Initialize Twilio client
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
+def split_message(message, max_length=1500):
+    """Split long messages into smaller chunks"""
+    if len(message) <= max_length:
+        return [message]
+    
+    parts = []
+    while message:
+        if len(message) <= max_length:
+            parts.append(message)
+            break
+        
+        split_index = message.rfind('\n', 0, max_length)
+        if split_index == -1:
+            split_index = max_length
+        
+        parts.append(message[:split_index])
+        message = message[split_index:].strip()
+    
+    return parts
+
 def analyze_image_with_ai(image_url):
     """
     Analyze food image using OpenAI's Vision API
@@ -53,14 +73,14 @@ def analyze_image_with_ai(image_url):
         }
         
         payload = {
-            "model": "gpt-4o",
+            "model": "gpt-4-vision-preview",
             "messages": [
                 {
                     "role": "user",
                     "content": [
                         {
                             "type": "text",
-                            "text": "Please analyze this food image and provide detailed nutritional information. Focus on identifying the food and estimating its macro nutrients (proteins, carbs, fats) and calorie content. Format your response in a clear, structured way showing each nutrient value."
+                            "text": "Analyze this food image. Format EXACTLY like this example:\n🍽️ Food: [name]\n🔥 Calories: [number]kcal\n🥩 Protein: [number]g\n🌾 Carbs: [number]g\n🥑 Fat: [number]g"
                         },
                         {
                             "type": "image_url",
@@ -71,7 +91,7 @@ def analyze_image_with_ai(image_url):
                     ]
                 }
             ],
-            "max_tokens": 800
+            "max_tokens": 150  # Even shorter response
         }
         
         # Make the API request
@@ -85,54 +105,39 @@ def analyze_image_with_ai(image_url):
         data = response.json()
         analysis = data.get('choices', [{}])[0].get('message', {}).get('content', '')
         
-        # Format the result
-        result = f"""📊 Nutritional Analysis:
-
-{analysis}
-
-⚙️ Analyzed with AI Vision"""
-        
-        return result
+        return analysis.strip()
     
     except Exception as e:
         return f"Error analyzing image: {str(e)}"
 
 def send_whatsapp_message(to_number, message):
-    """
-    Send a WhatsApp message using Twilio
-    """
+    """Send WhatsApp message, splitting if too long"""
     try:
-        print(f"Sending message to: {to_number}")
+        # Split message if needed
+        message_parts = split_message(message)
         
-        # Format the phone number for Twilio
-        # Twilio requires the format 'whatsapp:+1234567890'
-        if not to_number.startswith('whatsapp:'):
-            # Make sure the number starts with a plus sign
-            if not to_number.startswith('+'):
-                to_number = '+' + to_number
+        for part in message_parts:
+            # Format numbers
+            if not to_number.startswith('whatsapp:'):
+                if not to_number.startswith('+'):
+                    to_number = '+' + to_number
+                to_number = f"whatsapp:{to_number}"
             
-            to_number = f"whatsapp:{to_number}"
-        
-        # Format the Twilio number too
-        from_number = TWILIO_PHONE_NUMBER
-        if not from_number.startswith('whatsapp:'):
-            if not from_number.startswith('+'):
-                from_number = '+' + from_number
+            from_number = TWILIO_PHONE_NUMBER
+            if not from_number.startswith('whatsapp:'):
+                if not from_number.startswith('+'):
+                    from_number = '+' + from_number
+                from_number = f"whatsapp:{from_number}"
             
-            from_number = f"whatsapp:{from_number}"
+            # Send message
+            message = twilio_client.messages.create(
+                from_=from_number,
+                body=part,
+                to=to_number
+            )
+            time.sleep(1)  # Small delay between parts
         
-        print(f"Formatted number: {to_number}")
-        print(f"From number: {from_number}")
-        
-        # Send the message
-        message = twilio_client.messages.create(
-            from_=from_number,
-            body=message,
-            to=to_number
-        )
-        
-        print(f"Message sent successfully with SID: {message.sid}")
-        return {"success": True, "sid": message.sid}
+        return {"success": True}
     
     except Exception as e:
         print(f"Exception in send_whatsapp_message: {str(e)}")
@@ -169,10 +174,17 @@ def webhook():
             print(f"Content Type: {content_type}")
             
             if 'image' in content_type:
+                # Send immediate response that we're processing
+                send_whatsapp_message(from_number, "🔄 Processing your food image... Please wait a moment for the nutritional analysis.")
+                
                 print("Processing image...")
                 analysis = analyze_image_with_ai(media_url)
-                resp.message(analysis)
+                # Send the analysis as a separate message
+                send_whatsapp_message(from_number, analysis)
                 print("Image analysis complete")
+                
+                # Return empty response since we've already sent messages
+                return ''
             else:
                 resp.message("Please send an image of food for nutritional analysis.")
         
@@ -212,9 +224,9 @@ def test_message():
         result = send_whatsapp_message(to_number, message)
         
         if result.get("success"):
-            return jsonify({"status": "success", "message": "Test message sent", "sid": result.get("sid")})
+            return jsonify({"status": "success", "message": "Test message sent"})
         else:
-            return jsonify({"status": "error", "error": result.get("error")})
+            return jsonify({"status": "error", "error": result.get("error")}), 500
     
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
