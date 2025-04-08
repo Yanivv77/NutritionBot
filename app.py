@@ -80,7 +80,32 @@ def analyze_image_with_ai(image_url):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Provide a brief nutritional analysis of this food. Keep it concise with only:\n1. Food name\n2. Calories\n3. Protein\n4. Carbs\n5. Fat\nUse bullet points and numbers only, no explanations."
+                            "text": """Analyze each food item in this image and provide a total summary. Format exactly like this:
+
+📍 [Food Item 1 Name]
+⚖️ Portion: [number]g
+🔥 Calories: [number]kcal
+🥩 Protein: [number]g
+🌾 Carbs: [number]g
+🥑 Fat: [number]g
+
+---
+
+📍 [Food Item 2 Name]
+⚖️ Portion: [number]g
+🔥 Calories: [number]kcal
+🥩 Protein: [number]g
+🌾 Carbs: [number]g
+🥑 Fat: [number]g
+
+---
+
+📊 TOTAL NUTRITION
+⚖️ Total Weight: [sum of portions]g
+🔥 Total Calories: [sum]kcal
+🥩 Total Protein: [sum]g
+🌾 Total Carbs: [sum]g
+🥑 Total Fat: [sum]g"""
                         },
                         {
                             "type": "image_url",
@@ -91,7 +116,7 @@ def analyze_image_with_ai(image_url):
                     ]
                 }
             ],
-            "max_tokens": 300  # Reduced token limit for shorter responses
+            "max_tokens": 800  # Increased for multiple items plus total
         }
         
         # Make the API request
@@ -106,9 +131,9 @@ def analyze_image_with_ai(image_url):
         analysis = data.get('choices', [{}])[0].get('message', {}).get('content', '')
         
         # Format the result
-        result = f"""📊 Quick Nutrition Facts:
-{analysis}
-"""
+        result = f"""🍽️ Nutrition Analysis:
+
+{analysis}"""
         
         return result
     
