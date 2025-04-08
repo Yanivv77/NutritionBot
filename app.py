@@ -73,7 +73,7 @@ def analyze_image_with_ai(image_url):
         }
         
         payload = {
-            "model": "gpt-4-vision-preview",  # Fixed model name
+            "model": "gpt-4o-mini",
             "messages": [
                 {
                     "role": "user",
