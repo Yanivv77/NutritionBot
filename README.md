@@ -1,5 +1,7 @@
 # Nutrition Bot 🤖
 
+![Nutrition Bot Demo](pizza_macros.png)
+
 A WhatsApp bot that analyzes food images and provides detailed nutritional information using OpenAI's Vision API. Built with Flask, Twilio, and deployed on Railway.
 
 ## Features
